@@ -9,6 +9,11 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  // Health check route
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", service: "kid-learning-backend" });
+  });
+
   // Users
   app.get(api.users.list.path, async (req, res) => {
     // In a real app, this would be filtered or protected
