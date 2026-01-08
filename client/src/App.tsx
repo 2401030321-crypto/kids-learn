@@ -8,6 +8,7 @@ import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 import { useQuery } from "@tanstack/react-query";
 import { ContentCard } from "@/components/content-card";
+import { Badge } from "@/components/ui/badge";
 import type { Content } from "@shared/schema";
 
 function Home() {
