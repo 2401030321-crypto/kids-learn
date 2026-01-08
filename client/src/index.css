@@ -1,78 +1,91 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fredoka:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Playful Palette */
-  --font-display: 'Fredoka', sans-serif;
-  --font-body: 'Nunito', sans-serif;
+@layer base {
+  :root {
+    /* Playful Kids Theme - Light Mode */
+    --background: 210 100% 98%;    /* Soft Sky Blue */
+    --foreground: 222 47% 11%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --card-border: 210 20% 90%;
 
-  /* Bright & Friendly Colors */
-  --background: 210 50% 98%;      /* Soft Blue White */
-  --foreground: 222 47% 25%;      /* Dark Blue Text - easier on eyes than black */
-  
-  --primary: 190 90% 45%;         /* Bright Cyan/Teal */
-  --primary-foreground: 0 0% 100%;
-  
-  --secondary: 45 100% 60%;       /* Sunny Yellow */
-  --secondary-foreground: 30 50% 20%;
-  
-  --accent: 262 83% 68%;          /* Playful Purple */
-  --accent-foreground: 0 0% 100%;
-  
-  --destructive: 0 84% 65%;       /* Soft Red */
-  --destructive-foreground: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --popover-border: 210 20% 90%;
 
-  --muted: 210 20% 95%;
-  --muted-foreground: 215 20% 60%;
-  
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 25%;
-  
-  --border: 210 20% 90%;
-  --input: 210 20% 90%;
-  --ring: 190 90% 45%;
+    --primary: 199 89% 48%;        /* Friendly Blue */
+    --primary-foreground: 210 40% 98%;
+    --primary-border: 199 89% 40%;
 
-  --radius: 1.5rem; /* Large rounded corners for kid-friendly feel */
+    --secondary: 48 100% 50%;      /* Sunny Yellow */
+    --secondary-foreground: 222 47% 11%;
+    --secondary-border: 48 100% 40%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --muted-border: 210 40% 90%;
+
+    --accent: 142 71% 45%;         /* Nature Green */
+    --accent-foreground: 210 40% 98%;
+    --accent-border: 142 71% 35%;
+
+    --destructive: 0 84% 60%;      /* Soft Red */
+    --destructive-foreground: 210 40% 98%;
+    --destructive-border: 0 84% 50%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 199 89% 48%;
+
+    --radius: 1rem;                /* Extra rounded for kids */
+    
+    --font-sans: 'Inter', system-ui, sans-serif;
+  }
+
+  .dark {
+    /* Soft Dark Mode */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    
+    --card: 222 47% 15%;
+    --card-foreground: 210 40% 98%;
+    --card-border: 222 47% 20%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 48 100% 50%;
+    --secondary-foreground: 222 47% 11%;
+    
+    --accent: 142 71% 45%;
+    --accent-foreground: 210 40% 98%;
+
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 199 89% 48%;
+  }
 }
 
 @layer base {
+  * {
+    @apply border-border;
+  }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/20;
-    font-family: var(--font-body);
-    background-image: 
-      radial-gradient(circle at 10% 20%, rgba(255, 226, 89, 0.1) 0%, transparent 20%),
-      radial-gradient(circle at 90% 80%, rgba(66, 211, 255, 0.1) 0%, transparent 20%);
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    @apply font-bold tracking-tight text-slate-800;
+    @apply bg-background text-foreground font-sans antialiased;
+    background-image: radial-gradient(circle at 2px 2px, hsl(var(--muted)) 1px, transparent 0);
+    background-size: 40px 40px;
   }
 }
 
-@layer components {
-  /* Custom Kid-Friendly Card */
-  .kid-card {
-    @apply bg-white rounded-3xl p-6 border-2 border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] 
-           hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300;
+@layer utilities {
+  .kids-shadow {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
   }
-
-  /* Bouncy Button Effect */
-  .btn-bounce {
-    @apply active:scale-95 transition-transform duration-100;
+  
+  .kids-card-hover {
+    @apply transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg;
   }
-}
-
-/* Custom Scrollbar for playful feel */
-::-webkit-scrollbar {
-  width: 12px;
-}
-::-webkit-scrollbar-track {
-  @apply bg-transparent;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-primary/20 rounded-full hover:bg-primary/40 transition-colors border-4 border-transparent bg-clip-content;
 }
