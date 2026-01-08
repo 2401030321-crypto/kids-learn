@@ -4,88 +4,91 @@
 
 @layer base {
   :root {
-    /* Playful Kids Theme - Light Mode */
-    --background: 210 100% 98%;    /* Soft Sky Blue */
+    --background: 210 40% 98%;
     --foreground: 222 47% 11%;
-    
+
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-    --card-border: 210 20% 90%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --popover-border: 210 20% 90%;
 
-    --primary: 199 89% 48%;        /* Friendly Blue */
+    --primary: 199 89% 48%;
     --primary-foreground: 210 40% 98%;
-    --primary-border: 199 89% 40%;
 
-    --secondary: 48 100% 50%;      /* Sunny Yellow */
+    --secondary: 45 93% 47%;
     --secondary-foreground: 222 47% 11%;
-    --secondary-border: 48 100% 40%;
 
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
-    --muted-border: 210 40% 90%;
 
-    --accent: 142 71% 45%;         /* Nature Green */
+    --accent: 142 71% 45%;
     --accent-foreground: 210 40% 98%;
-    --accent-border: 142 71% 35%;
 
-    --destructive: 0 84% 60%;      /* Soft Red */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --destructive-border: 0 84% 50%;
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 199 89% 48%;
 
-    --radius: 1rem;                /* Extra rounded for kids */
-    
-    --font-sans: 'Inter', system-ui, sans-serif;
+    --radius: 1rem;
   }
 
   .dark {
-    /* Soft Dark Mode */
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
-    
-    --card: 222 47% 15%;
+
+    --card: 222 47% 11%;
     --card-foreground: 210 40% 98%;
-    --card-border: 222 47% 20%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
 
     --primary: 199 89% 48%;
     --primary-foreground: 210 40% 98%;
-    
-    --secondary: 48 100% 50%;
-    --secondary-foreground: 222 47% 11%;
-    
+
+    --secondary: 45 93% 47%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
     --accent: 142 71% 45%;
     --accent-foreground: 210 40% 98%;
 
-    --border: 217 32% 17%;
-    --input: 217 32% 17%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
     --ring: 199 89% 48%;
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    background-image: radial-gradient(circle at 2px 2px, hsl(var(--muted)) 1px, transparent 0);
-    background-size: 40px 40px;
+    background-image: radial-gradient(hsl(var(--muted-foreground) / 0.1) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight text-foreground/90 leading-tight;
+  }
+  h1 { @apply text-4xl lg:text-5xl; }
+  h2 { @apply text-3xl lg:text-4xl; }
+  h3 { @apply text-2xl lg:text-3xl; }
+  p { @apply leading-relaxed text-muted-foreground; }
 }
 
 @layer utilities {
   .kids-shadow {
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
   }
-  
   .kids-card-hover {
-    @apply transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg;
+    @apply transition-all duration-300 hover:scale-[1.02] hover:kids-shadow;
   }
 }
