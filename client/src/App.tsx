@@ -25,15 +25,19 @@ function Router() {
   );
 }
 
+import { AuthProvider } from "@/hooks/use-auth";
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Layout>
-          <Router />
-        </Layout>
-        <Toaster />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Layout>
+            <Router />
+          </Layout>
+          <Toaster />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

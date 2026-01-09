@@ -1,14 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { Home, Grid, Shield, Sparkles } from "lucide-react";
+import { Home, Grid, Shield, Sparkles, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 export function Navbar() {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
 
   const navItems = [
     { name: "Home", href: "/", icon: Home },
     { name: "Explore", href: "/categories", icon: Grid },
-    { name: "Parents", href: "/dashboard", icon: Shield },
+    ...(user?.role === "parent" ? [{ name: "Parents", href: "/dashboard", icon: Shield }] : []),
   ];
 
   return (
@@ -40,12 +42,31 @@ export function Navbar() {
                 </div>
               </Link>
             ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {user ? (
+            <div className="flex items-center gap-4">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold text-primary">{user.username}</p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{user.role}</p>
+              </div>
+              <button 
+                onClick={logout}
+                className="p-2 hover:bg-muted rounded-xl transition-all text-muted-foreground hover:text-destructive"
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
             <Link href="/login">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all cursor-pointer text-primary border-2 border-primary/20 hover:bg-primary/5 ml-2">
+              <div className="flex items-center gap-2 px-6 py-2 rounded-xl font-bold transition-all cursor-pointer bg-primary text-white hover-elevate shadow-sm">
                 Login
               </div>
             </Link>
-          </div>
+          )}
         </div>
       </div>
     </nav>

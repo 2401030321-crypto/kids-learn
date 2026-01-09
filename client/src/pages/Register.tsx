@@ -5,8 +5,37 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
 import { Sparkles } from "lucide-react";
+import { useState } from "react";
+import { registerUser } from "@/services/authService";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Register() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("child");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await registerUser({ username, password, role });
+      toast({
+        title: "Account created!",
+        description: "Now you can login with your credentials.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Registration failed",
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-4">
       <KidsCard className="w-full max-w-md p-8 space-y-8">
@@ -18,22 +47,33 @@ export default function Register() {
           <p className="text-muted-foreground">Start your learning journey today!</p>
         </div>
 
-        <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" placeholder="Your Name" className="rounded-xl" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="explorer@kidspace.com" className="rounded-xl" />
+            <Label htmlFor="username">Username</Label>
+            <Input 
+              id="username" 
+              placeholder="Choose an explorer name" 
+              className="rounded-xl"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" placeholder="••••••••" className="rounded-xl" />
+            <Input 
+              id="password" 
+              type="password" 
+              placeholder="••••••••" 
+              className="rounded-xl"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="role">I am a...</Label>
-            <Select>
+            <Select onValueChange={setRole} defaultValue={role}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
@@ -43,8 +83,8 @@ export default function Register() {
               </SelectContent>
             </Select>
           </div>
-          <KidsButton className="w-full text-lg py-6">
-            Create Account
+          <KidsButton className="w-full text-lg py-6" disabled={isLoading}>
+            {isLoading ? "Creating account..." : "Create Account"}
           </KidsButton>
         </form>
 
