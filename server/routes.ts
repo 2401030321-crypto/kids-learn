@@ -45,6 +45,30 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user || user.password !== password) {
+        return res.status(401).json({ message: "Invalid username or password" });
+      }
+
+      res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Users
   app.get(api.users.list.path, async (req, res) => {
     // In a real app, this would be filtered or protected
