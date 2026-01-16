@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Grid, Shield, Sparkles, LogOut } from "lucide-react";
+import { Home, Compass, Shield, Sparkles, LogOut, MessageCircle, Bot, Video, Film, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -9,8 +9,14 @@ export function Navbar() {
 
   const navItems = [
     { name: "Home", href: "/", icon: Home },
-    { name: "Explore", href: "/categories", icon: Grid },
+    { name: "Explore", href: "/explore", icon: Compass },
+    { name: "Shorts", href: "/shorts", icon: Film },
+    ...(user?.role === "child" ? [
+      { name: "Chat", href: "/chat", icon: MessageCircle },
+      { name: "AI Buddy", href: "/chatbot", icon: Bot },
+    ] : []),
     ...(user?.role === "parent" ? [{ name: "Parents", href: "/dashboard", icon: Shield }] : []),
+    ...(user?.role === "creator" ? [{ name: "Upload", href: "/creator", icon: Upload }] : []),
   ];
 
   return (
@@ -90,13 +96,16 @@ export function Footer() {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  const hideNavFooter = location === "/shorts" || location === "/chatbot";
+  
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Navbar />
+      {!hideNavFooter && <Navbar />}
       <main className="flex-1 flex flex-col">
         {children}
       </main>
-      <Footer />
+      {!hideNavFooter && <Footer />}
     </div>
   );
 }

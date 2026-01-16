@@ -1,0 +1,485 @@
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { KidsCard } from "@/components/kids-card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Send, Phone, Video, ArrowLeft, UserPlus, PhoneOff, VideoOff } from "lucide-react";
+
+interface Friend {
+  id: number;
+  userId: number;
+  friendId: number;
+  friendUsername?: string;
+  friendAvatar?: string;
+}
+
+interface Message {
+  id: number;
+  senderId: number;
+  receiverId: number;
+  content: string;
+  createdAt: string;
+}
+
+interface CallState {
+  active: boolean;
+  type: "voice" | "video" | null;
+  isOutgoing: boolean;
+  remoteUserId: number | null;
+}
+
+export default function Chat() {
+  const { user, getAuthHeader } = useAuth();
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [callState, setCallState] = useState<CallState>({ active: false, type: null, isOutgoing: false, remoteUserId: null });
+  const [incomingCall, setIncomingCall] = useState<{ fromUserId: number; callType: "voice" | "video" } | null>(null);
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  const ICE_SERVERS = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ];
+
+  useEffect(() => {
+    if (user) {
+      fetchFriends();
+      setupWebSocket();
+    }
+    return () => {
+      ws?.close();
+      cleanupCall();
+    };
+  }, [user]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const setupWebSocket = () => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ type: "auth", userId: user?.id }));
+    };
+
+    socket.onmessage = async (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === "chat-message") {
+        setMessages((prev) => [...prev, {
+          id: Date.now(),
+          senderId: data.senderId,
+          receiverId: user!.id,
+          content: data.content,
+          createdAt: new Date().toISOString(),
+        }]);
+      }
+      
+      if (data.type === "call-offer") {
+        setIncomingCall({ fromUserId: data.fromUserId, callType: data.callType });
+      }
+      
+      if (data.type === "call-answer" && peerConnectionRef.current) {
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      }
+      
+      if (data.type === "ice-candidate" && peerConnectionRef.current) {
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+      }
+      
+      if (data.type === "call-end" || data.type === "call-reject") {
+        cleanupCall();
+        setIncomingCall(null);
+      }
+    };
+
+    setWs(socket);
+  };
+
+  const fetchFriends = async () => {
+    try {
+      const response = await fetch(`/api/friends/${user?.id}`, {
+        headers: getAuthHeader(),
+      });
+      const data = await response.json();
+      setFriends(data);
+    } catch (err) {
+      console.error("Failed to fetch friends:", err);
+    }
+    setLoading(false);
+  };
+
+  const fetchMessages = async (friendId: number) => {
+    try {
+      const response = await fetch(`/api/messages/${user?.id}/${friendId}`, {
+        headers: getAuthHeader(),
+      });
+      const data = await response.json();
+      setMessages(data);
+    } catch (err) {
+      console.error("Failed to fetch messages:", err);
+    }
+  };
+
+  const handleSelectFriend = (friend: Friend) => {
+    setSelectedFriend(friend);
+    const friendUserId = friend.userId === user?.id ? friend.friendId : friend.userId;
+    fetchMessages(friendUserId);
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedFriend || !user) return;
+
+    const friendUserId = selectedFriend.userId === user.id ? selectedFriend.friendId : selectedFriend.userId;
+
+    try {
+      const response = await fetch("/api/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          senderId: user.id,
+          receiverId: friendUserId,
+          content: newMessage,
+        }),
+      });
+
+      if (response.ok) {
+        const message = await response.json();
+        setMessages((prev) => [...prev, message]);
+        
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: "chat-message",
+            receiverId: friendUserId,
+            content: newMessage,
+          }));
+        }
+        
+        setNewMessage("");
+      }
+    } catch (err) {
+      console.error("Failed to send message:", err);
+    }
+  };
+
+  const initializePeerConnection = () => {
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    
+    pc.onicecandidate = (event) => {
+      if (event.candidate && ws && callState.remoteUserId) {
+        ws.send(JSON.stringify({
+          type: "ice-candidate",
+          targetUserId: callState.remoteUserId,
+          candidate: event.candidate,
+        }));
+      }
+    };
+    
+    pc.ontrack = (event) => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = event.streams[0];
+      }
+    };
+    
+    peerConnectionRef.current = pc;
+    return pc;
+  };
+
+  const startCall = async (type: "voice" | "video") => {
+    if (!selectedFriend || !user || !ws) return;
+    
+    const friendUserId = selectedFriend.userId === user.id ? selectedFriend.friendId : selectedFriend.userId;
+    
+    try {
+      const constraints = {
+        audio: true,
+        video: type === "video",
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      localStreamRef.current = stream;
+      
+      if (localVideoRef.current && type === "video") {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      const pc = initializePeerConnection();
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      setCallState({ active: true, type, isOutgoing: true, remoteUserId: friendUserId });
+      
+      ws.send(JSON.stringify({
+        type: "call-offer",
+        targetUserId: friendUserId,
+        callType: type,
+        sdp: offer,
+      }));
+    } catch (err) {
+      console.error("Failed to start call:", err);
+      alert("Could not access camera/microphone. Please check permissions.");
+    }
+  };
+
+  const acceptCall = async () => {
+    if (!incomingCall || !ws) return;
+    
+    try {
+      const constraints = {
+        audio: true,
+        video: incomingCall.callType === "video",
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      localStreamRef.current = stream;
+      
+      if (localVideoRef.current && incomingCall.callType === "video") {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      const pc = initializePeerConnection();
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      
+      setCallState({ active: true, type: incomingCall.callType, isOutgoing: false, remoteUserId: incomingCall.fromUserId });
+      setIncomingCall(null);
+      
+      ws.send(JSON.stringify({
+        type: "call-answer",
+        targetUserId: incomingCall.fromUserId,
+        sdp: answer,
+      }));
+    } catch (err) {
+      console.error("Failed to accept call:", err);
+    }
+  };
+
+  const rejectCall = () => {
+    if (!incomingCall || !ws) return;
+    
+    ws.send(JSON.stringify({
+      type: "call-reject",
+      targetUserId: incomingCall.fromUserId,
+    }));
+    
+    setIncomingCall(null);
+  };
+
+  const endCall = () => {
+    if (ws && callState.remoteUserId) {
+      ws.send(JSON.stringify({
+        type: "call-end",
+        targetUserId: callState.remoteUserId,
+      }));
+    }
+    cleanupCall();
+  };
+
+  const cleanupCall = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
+    
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+    
+    setCallState({ active: false, type: null, isOutgoing: false, remoteUserId: null });
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen flex relative">
+      {incomingCall && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <KidsCard className="p-8 text-center space-y-6">
+            <div className="animate-pulse">
+              {incomingCall.callType === "video" ? (
+                <Video className="w-16 h-16 mx-auto text-blue-500" />
+              ) : (
+                <Phone className="w-16 h-16 mx-auto text-green-500" />
+              )}
+            </div>
+            <h2 className="text-2xl font-bold">Incoming {incomingCall.callType} call</h2>
+            <p className="text-muted-foreground">From User #{incomingCall.fromUserId}</p>
+            <div className="flex gap-4 justify-center">
+              <Button onClick={acceptCall} className="bg-green-500 hover:bg-green-600">
+                <Phone className="w-5 h-5 mr-2" /> Accept
+              </Button>
+              <Button onClick={rejectCall} variant="destructive">
+                <PhoneOff className="w-5 h-5 mr-2" /> Reject
+              </Button>
+            </div>
+          </KidsCard>
+        </div>
+      )}
+
+      {callState.active && (
+        <div className="fixed inset-0 bg-black z-40 flex flex-col">
+          <div className="flex-1 flex items-center justify-center gap-4 p-4">
+            {callState.type === "video" && (
+              <>
+                <video ref={remoteVideoRef} autoPlay playsInline className="max-h-full max-w-full rounded-lg" />
+                <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-24 right-4 w-32 h-24 rounded-lg" />
+              </>
+            )}
+            {callState.type === "voice" && (
+              <div className="text-center text-white">
+                <Phone className="w-24 h-24 mx-auto mb-4 animate-pulse" />
+                <p className="text-xl">Voice call in progress...</p>
+              </div>
+            )}
+          </div>
+          <div className="p-6 flex justify-center">
+            <Button onClick={endCall} size="lg" className="bg-red-500 hover:bg-red-600 rounded-full w-16 h-16">
+              <PhoneOff className="w-8 h-8" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className={`w-full md:w-80 border-r bg-white ${selectedFriend ? "hidden md:block" : ""}`}>
+        <div className="p-4 border-b">
+          <h2 className="text-xl font-bold">Friends</h2>
+        </div>
+        
+        {friends.length === 0 ? (
+          <div className="p-6 text-center">
+            <UserPlus className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+            <p className="text-muted-foreground">No friends yet!</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Ask your parent to approve friend requests.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {friends.map((friend) => (
+              <div
+                key={friend.id}
+                onClick={() => handleSelectFriend(friend)}
+                className="p-4 hover:bg-gray-50 cursor-pointer flex items-center gap-3"
+              >
+                <Avatar>
+                  <AvatarImage src={friend.friendAvatar} />
+                  <AvatarFallback>F</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">Friend #{friend.friendId}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selectedFriend ? (
+        <div className="flex-1 flex flex-col">
+          <div className="p-4 border-b flex items-center gap-4 bg-white">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="md:hidden"
+              onClick={() => setSelectedFriend(null)}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <Avatar>
+              <AvatarImage src={selectedFriend.friendAvatar} />
+              <AvatarFallback>F</AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <p className="font-medium">Friend #{selectedFriend.friendId}</p>
+            </div>
+            <Button variant="outline" size="icon" onClick={() => startCall("voice")}>
+              <Phone className="w-5 h-5" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => startCall("video")}>
+              <Video className="w-5 h-5" />
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.senderId === user?.id ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[70%] rounded-2xl px-4 py-2 ${
+                    message.senderId === user?.id
+                      ? "bg-blue-500 text-white"
+                      : "bg-white border"
+                  }`}
+                >
+                  {message.content}
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="p-4 border-t bg-white flex gap-2">
+            <Input
+              placeholder="Type a message..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+            />
+            <Button onClick={sendMessage}>
+              <Send className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <MessageCircleIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+            <p className="text-xl text-muted-foreground">Select a friend to start chatting</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MessageCircleIcon(props: any) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
+  );
+}

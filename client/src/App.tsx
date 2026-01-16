@@ -5,7 +5,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Home from "@/pages/Home";
 import Categories from "@/pages/Categories";
+import Explore from "@/pages/Explore";
+import Shorts from "@/pages/Shorts";
+import Chat from "@/pages/Chat";
+import Chatbot from "@/pages/Chatbot";
 import ParentDashboard from "@/pages/ParentDashboard";
+import CreatorDashboard from "@/pages/CreatorDashboard";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotFound from "@/pages/not-found";
@@ -34,8 +39,7 @@ function ProtectedRoute({ component: Component, roles }: { component: any, roles
           </div>
           <h2 className="text-3xl font-bold">Access Denied</h2>
           <p className="text-muted-foreground">
-            Sorry, Little Explorer! This area is for parents only. 
-            Ask your mom or dad to help you with these settings.
+            Sorry! You don't have access to this section.
           </p>
         </KidsCard>
       </div>
@@ -50,8 +54,19 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/categories" component={Categories} />
+      <Route path="/explore" component={Explore} />
+      <Route path="/shorts" component={Shorts} />
+      <Route path="/chat">
+        <ProtectedRoute component={Chat} roles={["child"]} />
+      </Route>
+      <Route path="/chatbot">
+        <ProtectedRoute component={Chatbot} roles={["child"]} />
+      </Route>
       <Route path="/dashboard">
         <ProtectedRoute component={ParentDashboard} roles={["parent"]} />
+      </Route>
+      <Route path="/creator">
+        <ProtectedRoute component={CreatorDashboard} roles={["creator"]} />
       </Route>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />

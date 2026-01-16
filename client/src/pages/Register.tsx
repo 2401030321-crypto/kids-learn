@@ -3,16 +3,17 @@ import { KidsButton } from "@/components/kids-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link } from "wouter";
-import { Sparkles } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Sparkles, Info } from "lucide-react";
 import { useState } from "react";
 import { registerUser } from "@/services/authService";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Register() {
+  const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("child");
+  const [role, setRole] = useState("parent");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -25,6 +26,7 @@ export default function Register() {
         title: "Account created!",
         description: "Now you can login with your credentials.",
       });
+      setLocation("/login");
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -69,20 +71,29 @@ export default function Register() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              minLength={4}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="role">I am a...</Label>
-            <Select onValueChange={setRole} defaultValue={role}>
+            <Select onValueChange={setRole} value={role}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="parent">Parent</SelectItem>
-                <SelectItem value="child">Child</SelectItem>
+                <SelectItem value="creator">Creator</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+            <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-blue-700">
+              <strong>Child accounts</strong> can only be created by parents from the Parent Dashboard after logging in. This keeps children safe!
+            </p>
+          </div>
+          
           <KidsButton className="w-full text-lg py-6" disabled={isLoading}>
             {isLoading ? "Creating account..." : "Create Account"}
           </KidsButton>

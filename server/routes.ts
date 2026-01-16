@@ -5,9 +5,11 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 import { authenticateJWT, authorizeParent } from "./auth-middleware";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "default-secret-key";
+const SALT_ROUNDS = 10;
 
 const connectedClients: Map<number, WebSocket> = new Map();
 
@@ -27,7 +29,9 @@ export async function registerRoutes(
         
         if (message.type === "auth") {
           userId = message.userId;
-          connectedClients.set(userId, ws);
+          if (userId !== null) {
+            connectedClients.set(userId, ws);
+          }
         }
         
         if (message.type === "call-offer" || message.type === "call-answer" || 
@@ -85,9 +89,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Username already exists" });
       }
 
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      
       const user = await storage.createUser({
         username,
-        password,
+        password: hashedPassword,
         role,
         parentId: role === "child" ? parentId : null,
       });
@@ -124,7 +130,12 @@ export async function registerRoutes(
 
       const user = await storage.getUserByUsername(username);
       
-      if (!user || user.password !== password) {
+      if (!user) {
+        return res.status(401).json({ message: "Invalid username or password" });
+      }
+      
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
         return res.status(401).json({ message: "Invalid username or password" });
       }
 
@@ -186,9 +197,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Username already exists" });
       }
 
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
       const child = await storage.createUser({
         username,
-        password,
+        password: hashedPassword,
         role: "child",
         parentId,
       });

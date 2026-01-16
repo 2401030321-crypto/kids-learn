@@ -5,6 +5,8 @@ interface User {
   username: string;
   role: string;
   token?: string;
+  parentId?: number | null;
+  avatar?: string;
 }
 
 interface AuthContextType {
@@ -12,6 +14,7 @@ interface AuthContextType {
   login: (userData: User) => void;
   logout: () => void;
   isLoading: boolean;
+  getAuthHeader: () => { Authorization: string } | {};
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,13 +27,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const savedUser = localStorage.getItem("kidspace_user");
     if (savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        const parsed = JSON.parse(savedUser);
+        setUser(parsed);
+        verifyToken(parsed.token);
       } catch (e) {
         localStorage.removeItem("kidspace_user");
       }
     }
     setIsLoading(false);
   }, []);
+
+  const verifyToken = async (token: string) => {
+    try {
+      const response = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        logout();
+      }
+    } catch {
+      logout();
+    }
+  };
 
   const login = (userData: User) => {
     setUser(userData);
@@ -42,8 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("kidspace_user");
   };
 
+  const getAuthHeader = () => {
+    if (user?.token) {
+      return { Authorization: `Bearer ${user.token}` };
+    }
+    return {};
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, getAuthHeader }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,15 +1,41 @@
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Clock, BookOpen, PenTool, MessageCircle, Lock, Save } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { Shield, Clock, BookOpen, PenTool, MessageCircle, Save, UserPlus, Users, Check, X, Compass, Film, Bot } from "lucide-react";
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import { clsx } from "clsx";
+import { KidsCard } from "@/components/kids-card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+interface Child {
+  id: number;
+  username: string;
+  avatar?: string;
+}
+
+interface FriendRequest {
+  id: number;
+  fromUserId: number;
+  toUserId: number;
+  status: string;
+}
 
 export default function ParentDashboard() {
-  const kidId = 1; // In real app, this would come from auth context
-  const { data: settings, isLoading } = useSettings(kidId);
-  const updateSettings = useUpdateSettings();
+  const { user, getAuthHeader } = useAuth();
   const { toast } = useToast();
+  
+  const [children, setChildren] = useState<Child[]>([]);
+  const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
+  const [newChildUsername, setNewChildUsername] = useState("");
+  const [newChildPassword, setNewChildPassword] = useState("");
+  const [addingChild, setAddingChild] = useState(false);
+  
+  const { data: settings, isLoading: settingsLoading } = useSettings(selectedChildId || 0);
+  const updateSettings = useUpdateSettings();
   
   const [formData, setFormData] = useState({
     dailyTimeLimitMinutes: 60,
@@ -17,7 +43,17 @@ export default function ParentDashboard() {
     allowLearning: true,
     allowCreativity: true,
     allowMessaging: true,
+    allowExplore: true,
+    allowShorts: true,
+    allowChatbot: true,
   });
+
+  useEffect(() => {
+    if (user) {
+      fetchChildren();
+      fetchPendingRequests();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (settings) {
@@ -27,19 +63,116 @@ export default function ParentDashboard() {
         allowLearning: settings.allowLearning ?? true,
         allowCreativity: settings.allowCreativity ?? true,
         allowMessaging: settings.allowMessaging ?? true,
+        allowExplore: settings.allowExplore ?? true,
+        allowShorts: settings.allowShorts ?? true,
+        allowChatbot: settings.allowChatbot ?? true,
       });
     }
   }, [settings]);
 
+  const fetchChildren = async () => {
+    try {
+      const response = await fetch(`/api/children/${user?.id}`, {
+        headers: getAuthHeader(),
+      });
+      const data = await response.json();
+      setChildren(data);
+      if (data.length > 0 && !selectedChildId) {
+        setSelectedChildId(data[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to fetch children:", err);
+    }
+  };
+
+  const fetchPendingRequests = async () => {
+    try {
+      const response = await fetch(`/api/friends/pending-approval/${user?.id}`, {
+        headers: getAuthHeader(),
+      });
+      const data = await response.json();
+      setPendingRequests(data);
+    } catch (err) {
+      console.error("Failed to fetch pending requests:", err);
+    }
+  };
+
+  const addChild = async () => {
+    if (!newChildUsername || !newChildPassword) return;
+    setAddingChild(true);
+    
+    try {
+      const response = await fetch("/api/children/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          parentId: user?.id,
+          username: newChildUsername,
+          password: newChildPassword,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Child Added!",
+          description: `${newChildUsername} has been added successfully.`,
+        });
+        setNewChildUsername("");
+        setNewChildPassword("");
+        fetchChildren();
+      } else {
+        const error = await response.json();
+        throw new Error(error.message);
+      }
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to add child",
+        description: err.message,
+      });
+    }
+    setAddingChild(false);
+  };
+
+  const approveFriendRequest = async (requestId: number) => {
+    try {
+      await fetch(`/api/friends/approve/${requestId}`, {
+        method: "POST",
+        headers: getAuthHeader(),
+      });
+      toast({ title: "Friend request approved!" });
+      fetchPendingRequests();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to approve request" });
+    }
+  };
+
+  const rejectFriendRequest = async (requestId: number) => {
+    try {
+      await fetch(`/api/friends/reject/${requestId}`, {
+        method: "POST",
+        headers: getAuthHeader(),
+      });
+      toast({ title: "Friend request rejected" });
+      fetchPendingRequests();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to reject request" });
+    }
+  };
+
   const handleSave = () => {
+    if (!selectedChildId) return;
+    
     updateSettings.mutate(
-      { kidId, updates: formData },
+      { kidId: selectedChildId, updates: formData },
       {
         onSuccess: () => {
           toast({
             title: "Settings Saved!",
-            description: "Your parental controls have been updated.",
-            className: "bg-green-50 border-green-200 text-green-800",
+            description: "Parental controls have been updated.",
           });
         },
         onError: () => {
@@ -69,159 +202,224 @@ export default function ParentDashboard() {
     colorClass: string
   }) => (
     <div className={clsx(
-      "p-6 rounded-3xl border-2 transition-all duration-300 flex items-center justify-between group",
-      checked ? "bg-white border-slate-100 shadow-lg" : "bg-slate-50 border-transparent opacity-75 grayscale-[0.5]"
+      "p-4 rounded-2xl border-2 transition-all duration-300 flex items-center justify-between group",
+      checked ? "bg-white border-slate-100 shadow-lg" : "bg-slate-50 border-transparent opacity-75"
     )}>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <div className={clsx(
-          "w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-md transition-transform group-hover:scale-110",
+          "w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md transition-transform",
           checked ? colorClass : "bg-slate-300"
         )}>
-          <Icon size={24} strokeWidth={2.5} />
+          <Icon size={20} strokeWidth={2.5} />
         </div>
         <div>
-          <h3 className="font-display font-bold text-lg text-slate-800">{label}</h3>
-          <p className="text-sm text-slate-400 font-medium">{description}</p>
+          <h3 className="font-bold text-slate-800">{label}</h3>
+          <p className="text-xs text-slate-400">{description}</p>
         </div>
       </div>
       
       <button 
         onClick={() => onChange(!checked)}
         className={clsx(
-          "w-14 h-8 rounded-full p-1 transition-colors duration-300 relative",
+          "w-12 h-7 rounded-full p-1 transition-colors duration-300 relative",
           checked ? "bg-green-500" : "bg-slate-300"
         )}
       >
         <div className={clsx(
-          "w-6 h-6 bg-white rounded-full shadow-sm transition-transform duration-300",
-          checked ? "translate-x-6" : "translate-x-0"
+          "w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300",
+          checked ? "translate-x-5" : "translate-x-0"
         )} />
       </button>
     </div>
   );
 
-  if (isLoading) return <div className="p-8 flex justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-
   return (
-    <div className="pb-32 px-4 md:px-8 max-w-3xl mx-auto pt-8">
-      
+    <div className="pb-32 px-4 md:px-8 max-w-4xl mx-auto pt-8">
       <header className="mb-8 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 text-orange-600 rounded-3xl mb-4 shadow-sm">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 text-orange-600 rounded-3xl mb-4">
           <Shield size={32} strokeWidth={2.5} />
         </div>
-        <h1 className="font-display font-black text-3xl md:text-4xl text-slate-800 mb-2">
+        <h1 className="font-black text-3xl md:text-4xl text-slate-800 mb-2">
           Parent Dashboard
         </h1>
-        <p className="text-slate-500 font-medium text-lg">
-          Manage screen time and content access
+        <p className="text-slate-500 font-medium">
+          Manage your children's accounts and permissions
         </p>
       </header>
 
-      <div className="space-y-6">
-        {/* Time Limits Section */}
-        <section className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
-          <div className="flex items-center gap-3 mb-6">
-            <Clock className="text-blue-500" size={24} strokeWidth={2.5} />
-            <h2 className="font-display font-bold text-xl text-slate-800">Daily Time Limit</h2>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[30, 60, 90, 120].map((mins) => {
-              const isSelected = formData.dailyTimeLimitMinutes === mins;
-              return (
-                <button
-                  key={mins}
-                  onClick={() => setFormData({ ...formData, dailyTimeLimitMinutes: mins })}
-                  className={clsx(
-                    "py-3 px-4 rounded-xl font-bold border-2 transition-all btn-bounce",
-                    isSelected 
-                      ? "border-blue-500 bg-blue-50 text-blue-700 shadow-md" 
-                      : "border-slate-100 bg-white text-slate-500 hover:border-blue-200"
-                  )}
-                >
-                  {mins / 60 >= 1 ? `${mins / 60} hr` : `${mins} min`}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+      <Tabs defaultValue="children" className="space-y-6">
+        <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto">
+          <TabsTrigger value="children">Children</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="friends">Friends</TabsTrigger>
+        </TabsList>
 
-        {/* Content Toggles */}
-        <div className="grid gap-4">
-          <ToggleCard
-            icon={BookOpen}
-            label="Story Time"
-            description="Allow story videos"
-            checked={formData.allowStories}
-            onChange={(val) => setFormData({...formData, allowStories: val})}
-            colorClass="bg-purple-500"
-          />
-          <ToggleCard
-            icon={FlaskConical}
-            label="Learning"
-            description="Allow educational content"
-            checked={formData.allowLearning}
-            onChange={(val) => setFormData({...formData, allowLearning: val})}
-            colorClass="bg-blue-500"
-          />
-          <ToggleCard
-            icon={PenTool}
-            label="Creativity"
-            description="Allow drawing & craft videos"
-            checked={formData.allowCreativity}
-            onChange={(val) => setFormData({...formData, allowCreativity: val})}
-            colorClass="bg-orange-500"
-          />
-          <ToggleCard
-            icon={MessageCircle}
-            label="Messaging"
-            description="Allow chat with friends"
-            checked={formData.allowMessaging}
-            onChange={(val) => setFormData({...formData, allowMessaging: val})}
-            colorClass="bg-pink-500"
-          />
-        </div>
+        <TabsContent value="children" className="space-y-6">
+          <KidsCard className="p-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Add New Child
+            </h2>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <Label>Username</Label>
+                <Input
+                  value={newChildUsername}
+                  onChange={(e) => setNewChildUsername(e.target.value)}
+                  placeholder="Enter username"
+                />
+              </div>
+              <div>
+                <Label>Password</Label>
+                <Input
+                  type="password"
+                  value={newChildPassword}
+                  onChange={(e) => setNewChildPassword(e.target.value)}
+                  placeholder="Enter password"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button onClick={addChild} disabled={addingChild} className="w-full">
+                  {addingChild ? "Adding..." : "Add Child"}
+                </Button>
+              </div>
+            </div>
+          </KidsCard>
 
-        {/* Save Button */}
-        <div className="sticky bottom-24 z-10">
-          <button 
-            onClick={handleSave}
-            disabled={updateSettings.isPending}
-            className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-display font-bold text-xl shadow-lg shadow-slate-400/30 flex items-center justify-center gap-2 btn-bounce disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {updateSettings.isPending ? (
-              <>Saving...</>
+          <KidsCard className="p-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Your Children ({children.length})
+            </h2>
+            {children.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                No children added yet. Add your first child above!
+              </p>
             ) : (
-              <>
-                <Save size={20} />
-                Save Settings
-              </>
+              <div className="grid gap-3">
+                {children.map((child) => (
+                  <div
+                    key={child.id}
+                    onClick={() => setSelectedChildId(child.id)}
+                    className={clsx(
+                      "p-4 rounded-xl flex items-center gap-4 cursor-pointer transition-all",
+                      selectedChildId === child.id
+                        ? "bg-primary/10 border-2 border-primary"
+                        : "bg-gray-50 hover:bg-gray-100"
+                    )}
+                  >
+                    <img
+                      src={child.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${child.username}`}
+                      alt={child.username}
+                      className="w-12 h-12 rounded-full"
+                    />
+                    <div>
+                      <p className="font-bold">{child.username}</p>
+                      <p className="text-sm text-muted-foreground">Click to manage settings</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
-          </button>
-        </div>
-      </div>
+          </KidsCard>
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-6">
+          {!selectedChildId ? (
+            <KidsCard className="p-8 text-center">
+              <p className="text-muted-foreground">
+                Please add a child first to manage their settings.
+              </p>
+            </KidsCard>
+          ) : settingsLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <>
+              <KidsCard className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <Clock className="text-blue-500" size={24} />
+                  <h2 className="font-bold text-xl">Daily Time Limit</h2>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {[30, 60, 90, 120].map((mins) => (
+                    <button
+                      key={mins}
+                      onClick={() => setFormData({ ...formData, dailyTimeLimitMinutes: mins })}
+                      className={clsx(
+                        "py-3 rounded-xl font-bold border-2 transition-all",
+                        formData.dailyTimeLimitMinutes === mins 
+                          ? "border-blue-500 bg-blue-50 text-blue-700" 
+                          : "border-slate-100 bg-white text-slate-500 hover:border-blue-200"
+                      )}
+                    >
+                      {mins >= 60 ? `${mins / 60} hr` : `${mins} min`}
+                    </button>
+                  ))}
+                </div>
+              </KidsCard>
+
+              <div className="grid gap-3">
+                <ToggleCard icon={BookOpen} label="Story Time" description="Allow story videos" checked={formData.allowStories} onChange={(val) => setFormData({...formData, allowStories: val})} colorClass="bg-purple-500" />
+                <ToggleCard icon={FlaskConical} label="Learning" description="Allow educational content" checked={formData.allowLearning} onChange={(val) => setFormData({...formData, allowLearning: val})} colorClass="bg-blue-500" />
+                <ToggleCard icon={PenTool} label="Creativity" description="Allow drawing & craft videos" checked={formData.allowCreativity} onChange={(val) => setFormData({...formData, allowCreativity: val})} colorClass="bg-orange-500" />
+                <ToggleCard icon={MessageCircle} label="Messaging" description="Allow chat with friends" checked={formData.allowMessaging} onChange={(val) => setFormData({...formData, allowMessaging: val})} colorClass="bg-pink-500" />
+                <ToggleCard icon={Compass} label="Explore" description="Allow YouTube explore" checked={formData.allowExplore} onChange={(val) => setFormData({...formData, allowExplore: val})} colorClass="bg-green-500" />
+                <ToggleCard icon={Film} label="Shorts" description="Allow short videos" checked={formData.allowShorts} onChange={(val) => setFormData({...formData, allowShorts: val})} colorClass="bg-red-500" />
+                <ToggleCard icon={Bot} label="AI Buddy" description="Allow chatbot access" checked={formData.allowChatbot} onChange={(val) => setFormData({...formData, allowChatbot: val})} colorClass="bg-indigo-500" />
+              </div>
+
+              <Button onClick={handleSave} className="w-full py-6 text-lg" disabled={updateSettings.isPending}>
+                <Save className="w-5 h-5 mr-2" />
+                {updateSettings.isPending ? "Saving..." : "Save Settings"}
+              </Button>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="friends" className="space-y-6">
+          <KidsCard className="p-6">
+            <h2 className="text-xl font-bold mb-4">Pending Friend Requests</h2>
+            {pendingRequests.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                No pending friend requests to approve.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pendingRequests.map((request) => (
+                  <div key={request.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div>
+                      <p className="font-medium">Friend Request #{request.id}</p>
+                      <p className="text-sm text-muted-foreground">
+                        User {request.fromUserId} wants to be friends with User {request.toUserId}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => approveFriendRequest(request.id)} className="bg-green-500 hover:bg-green-600">
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => rejectFriendRequest(request.id)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </KidsCard>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
-// Helper icon component
 function FlaskConical(props: any) {
   return (
-    <svg 
-      {...props}
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2" />
       <path d="M8.5 2h7" />
       <path d="M7 16h10" />
     </svg>
-  )
+  );
 }

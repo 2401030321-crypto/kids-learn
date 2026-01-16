@@ -15,7 +15,7 @@ export async function registerUser(data: any) {
   return response.json();
 }
 
-function getAuthHeaders() {
+function getAuthHeaders(): Record<string, string> {
   const savedUser = localStorage.getItem("kidspace_user");
   if (savedUser) {
     const user = JSON.parse(savedUser);
@@ -44,11 +44,12 @@ export async function loginUser(data: any) {
 }
 
 export async function updateSettings(kidId: number, data: any) {
+  const authHeaders = getAuthHeaders();
   const response = await fetch(`/api/settings/${kidId}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
-      ...getAuthHeaders(),
+      ...authHeaders,
     },
     body: JSON.stringify(data),
   });

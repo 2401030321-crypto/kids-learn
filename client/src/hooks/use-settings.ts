@@ -1,43 +1,51 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl } from "@shared/routes";
-import { z } from "zod";
-import { insertSettingsSchema } from "@shared/schema";
 
-export function useSettings(kidId: number) {
+function getAuthHeaders(): Record<string, string> {
+  const savedUser = localStorage.getItem("kidspace_user");
+  if (savedUser) {
+    const user = JSON.parse(savedUser);
+    if (user.token) {
+      return { "Authorization": `Bearer ${user.token}` };
+    }
+  }
+  return {};
+}
+
+export function useSettings(childId: number) {
   return useQuery({
-    queryKey: [api.settings.get.path, kidId],
-    enabled: !!kidId,
+    queryKey: ["settings", childId],
+    enabled: !!childId && childId > 0,
     queryFn: async () => {
-      const url = buildUrl(api.settings.get.path, { kidId });
-      const res = await fetch(url, { credentials: "include" });
+      const headers = getAuthHeaders();
+      const res = await fetch(`/api/settings/${childId}`, { 
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+      });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch settings");
-      return api.settings.get.responses[200].parse(await res.json());
+      return res.json();
     },
   });
 }
 
-type UpdateSettingsInput = z.infer<typeof api.settings.update.input>;
-
 export function useUpdateSettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ kidId, updates }: { kidId: number; updates: UpdateSettingsInput }) => {
-      const url = buildUrl(api.settings.update.path, { kidId });
-      const validated = api.settings.update.input.parse(updates);
-      
-      const res = await fetch(url, {
-        method: api.settings.update.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-        credentials: "include",
+    mutationFn: async ({ kidId, updates }: { kidId: number; updates: any }) => {
+      const authHeaders = getAuthHeaders();
+      const res = await fetch(`/api/settings/${kidId}`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify(updates),
       });
 
       if (!res.ok) throw new Error("Failed to update settings");
-      return api.settings.update.responses[200].parse(await res.json());
+      return res.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.settings.get.path, variables.kidId] });
+      queryClient.invalidateQueries({ queryKey: ["settings", variables.kidId] });
     },
   });
 }
