@@ -36,3 +36,11 @@ export function authorizeParent(req: AuthRequest, res: Response, next: NextFunct
     res.status(403).json({ message: "Access denied. Parents only." });
   }
 }
+
+export function authorizeCreator(req: AuthRequest, res: Response, next: NextFunction) {
+  if (req.user && req.user.role === "creator") {
+    next();
+  } else {
+    res.status(403).json({ message: "Access denied. Creators only." });
+  }
+}

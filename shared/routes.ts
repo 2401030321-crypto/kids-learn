@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertUserSchema, insertSettingsSchema, insertContentSchema, users, parentalSettings, content } from './schema';
+import { insertUserSchema, insertSettingsSchema, insertContentSchema, users, parentalSettings, content, friends, friendRequests, messages } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -44,7 +44,7 @@ export const api = {
   settings: {
     get: {
       method: 'GET' as const,
-      path: '/api/settings/:kidId',
+      path: '/api/settings/:childId',
       responses: {
         200: z.custom<typeof parentalSettings.$inferSelect>(),
         404: errorSchemas.notFound,
@@ -52,7 +52,7 @@ export const api = {
     },
     update: {
       method: 'PATCH' as const,
-      path: '/api/settings/:kidId',
+      path: '/api/settings/:childId',
       input: insertSettingsSchema.partial(),
       responses: {
         200: z.custom<typeof parentalSettings.$inferSelect>(),
@@ -69,6 +69,151 @@ export const api = {
       }).optional(),
       responses: {
         200: z.array(z.custom<typeof content.$inferSelect>()),
+      },
+    },
+    shorts: {
+      method: 'GET' as const,
+      path: '/api/content/shorts',
+      responses: {
+        200: z.array(z.custom<typeof content.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/content',
+      input: insertContentSchema,
+      responses: {
+        201: z.custom<typeof content.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+  },
+  friends: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/friends/:userId',
+      responses: {
+        200: z.array(z.custom<typeof friends.$inferSelect>()),
+      },
+    },
+    requests: {
+      method: 'GET' as const,
+      path: '/api/friends/requests/:userId',
+      responses: {
+        200: z.array(z.custom<typeof friendRequests.$inferSelect>()),
+      },
+    },
+    pendingApproval: {
+      method: 'GET' as const,
+      path: '/api/friends/pending-approval/:parentId',
+      responses: {
+        200: z.array(z.custom<typeof friendRequests.$inferSelect>()),
+      },
+    },
+    sendRequest: {
+      method: 'POST' as const,
+      path: '/api/friends/request',
+      input: z.object({
+        fromUserId: z.number(),
+        toUserId: z.number(),
+      }),
+      responses: {
+        201: z.custom<typeof friendRequests.$inferSelect>(),
+      },
+    },
+    approveRequest: {
+      method: 'POST' as const,
+      path: '/api/friends/approve/:requestId',
+      responses: {
+        200: z.object({ message: z.string() }),
+      },
+    },
+    rejectRequest: {
+      method: 'POST' as const,
+      path: '/api/friends/reject/:requestId',
+      responses: {
+        200: z.object({ message: z.string() }),
+      },
+    },
+  },
+  messages: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/messages/:userId/:friendId',
+      responses: {
+        200: z.array(z.custom<typeof messages.$inferSelect>()),
+      },
+    },
+    send: {
+      method: 'POST' as const,
+      path: '/api/messages',
+      input: z.object({
+        senderId: z.number(),
+        receiverId: z.number(),
+        content: z.string().min(1),
+      }),
+      responses: {
+        201: z.custom<typeof messages.$inferSelect>(),
+      },
+    },
+  },
+  explore: {
+    search: {
+      method: 'GET' as const,
+      path: '/api/explore/search',
+      responses: {
+        200: z.array(z.object({
+          id: z.string(),
+          title: z.string(),
+          thumbnailUrl: z.string(),
+          channelTitle: z.string(),
+        })),
+      },
+    },
+    categories: {
+      method: 'GET' as const,
+      path: '/api/explore/categories',
+      responses: {
+        200: z.array(z.object({
+          name: z.string(),
+          query: z.string(),
+        })),
+      },
+    },
+  },
+  chatbot: {
+    chat: {
+      method: 'POST' as const,
+      path: '/api/chatbot/chat',
+      input: z.object({
+        userId: z.number(),
+        message: z.string().min(1),
+      }),
+      responses: {
+        200: z.object({
+          response: z.string(),
+        }),
+      },
+    },
+  },
+  children: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/children/:parentId',
+      responses: {
+        200: z.array(z.custom<typeof users.$inferSelect>()),
+      },
+    },
+    add: {
+      method: 'POST' as const,
+      path: '/api/children/add',
+      input: z.object({
+        parentId: z.number(),
+        username: z.string().min(1),
+        password: z.string().min(4),
+      }),
+      responses: {
+        201: z.custom<typeof users.$inferSelect>(),
       },
     },
   },

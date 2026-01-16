@@ -1,0 +1,122 @@
+I have uploaded a ZIP file of an existing full-stack web platform.
+Your task is NOT to redesign or refactor, but to understand, restore, and continue the current system exactly as described below.
+🔹 PROJECT OVERVIEW
+This is a child-safe video platform with:
+Parent & Child roles
+Creator video uploads
+Chat (parent-approved)
+Explore section (YouTube-based)
+Shorts section
+Authentication & authorization
+Role-based access control
+The project already has backend (Node.js/Express) and frontend (React) implemented.
+🔐 AUTHENTICATION & ROLES (ALREADY IMPLEMENTED)
+Roles:
+Parent
+Child
+Creator
+Authentication:
+JWT-based authentication
+Tokens stored securely
+Auth state persists across refresh
+Protected routes for each role
+👨‍👩‍👧 PARENT ↔ CHILD SYSTEM (ALREADY IMPLEMENTED)
+Rules:
+❌ A Child cannot create an account alone
+✅ Child must be linked by a Parent
+Parent dashboard includes:
+Link / add child by username or invite
+Manage child permissions
+Approve friends & chats
+Control viewing time limits (logic exists)
+UI confirmations (success messages) may need polishing, but logic exists.
+💬 CHAT SYSTEM (ALREADY IMPLEMENTED)
+One-to-one chat only
+Parent-approved chat pairs
+Children can only chat with approved friends
+No group chats
+Chat must continue to work exactly as is
+📞 VOICE & VIDEO CALLING (BASIC WEBRTC)
+Implemented:
+One-to-one calls only
+Voice call button
+Video call button
+Accept / Reject incoming call
+End call
+WebRTC (RTCPeerConnection)
+STUN servers only
+Calls end on refresh
+No recording
+No group calls
+Parent-approved chat pairs only
+🎥 CREATOR VIDEO SYSTEM (ALREADY IMPLEMENTED)
+Creators can upload videos
+Videos appear on platform for children
+Videos are stored and streamed normally
+❌ NO FILTERING here (important)
+▶️ VIDEO SECTIONS (IMPORTANT)
+1️⃣ NORMAL VIDEOS
+Visible to Children
+Curated by category
+Played inside platform
+2️⃣ SHORTS (NEWLY ADDED & MUST WORK)
+Vertical scrolling Shorts section
+Instagram / YouTube-Shorts style
+Only short-length videos
+Appears in Child section only
+No filters applied here
+Must be visible and functional
+⚠️ Shorts must definitely appear in UI and be playable.
+🔍 EXPLORE SECTION (YOUTUBE-BASED)
+Uses YouTube Data API
+Category-based exploration:
+Drawing
+Learning
+Science
+Fun
+etc.
+Videos are:
+Recommended
+Played inside the platform
+❌ Must NOT redirect to YouTube or YouTube Kids
+🤖 CHATBOT (CHILD-SAFE)
+Chatbot exists for children
+Uses Cerebras AI
+Focus is on BLOCKING unsafe topics, not allowing
+Must refuse:
+Violence
+Sexual content
+Drugs
+Adult topics
+Harmful advice
+Works inside Child section only
+🔑 API KEYS REQUIRED (IMPORTANT)
+You will find placeholders or environment variables for:
+JWT_SECRET
+MongoDB URI
+YouTube Data API Key
+Used in Explore section
+Cerebras AI API Key
+Used in chatbot
+👉 I will manually insert these keys —
+DO NOT hardcode them
+Use:
+.env file
+process.env.KEY_NAME
+⚠️ VERY IMPORTANT RULES
+❌ Do NOT refactor existing logic
+❌ Do NOT remove any features
+❌ Do NOT redesign UI
+❌ Do NOT add filters
+✅ Only restore, fix broken connections, and ensure everything works
+🎯 FINAL GOAL
+After extracting the ZIP:
+App should run without crashes
+Auth works
+Parent & Child roles work
+Chat works
+Calls work
+Explore videos load
+Shorts section is visible & playable
+Creator uploads appear correctly
+If any file reference is missing, infer logically from existing structure, not redesign.
