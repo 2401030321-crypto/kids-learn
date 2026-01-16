@@ -159,6 +159,28 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/users/search", authenticateJWT, async (req, res) => {
+    try {
+      const { username } = req.query;
+      if (!username || typeof username !== "string") {
+        return res.status(400).json({ message: "Username required" });
+      }
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        avatar: user.avatar,
+      });
+    } catch (err) {
+      console.error("User search error:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/auth/me", authenticateJWT, async (req, res) => {
     try {
       const user = await storage.getUser((req as any).user.id);

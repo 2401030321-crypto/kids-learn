@@ -39,6 +39,10 @@ export default function Chat() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [callState, setCallState] = useState<CallState>({ active: false, type: null, isOutgoing: false, remoteUserId: null });
   const [incomingCall, setIncomingCall] = useState<{ fromUserId: number; callType: "voice" | "video" } | null>(null);
+  const [showAddFriend, setShowAddFriend] = useState(false);
+  const [friendUsername, setFriendUsername] = useState("");
+  const [addingFriend, setAddingFriend] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -54,6 +58,7 @@ export default function Chat() {
   useEffect(() => {
     if (user) {
       fetchFriends();
+      fetchPendingRequests();
       setupWebSocket();
     }
     return () => {
@@ -61,6 +66,69 @@ export default function Chat() {
       cleanupCall();
     };
   }, [user]);
+
+  const fetchPendingRequests = async () => {
+    try {
+      const response = await fetch(`/api/friends/requests/${user?.id}`, {
+        headers: getAuthHeader(),
+      });
+      const data = await response.json();
+      setPendingRequests(data);
+    } catch (err) {
+      console.error("Failed to fetch pending requests:", err);
+    }
+  };
+
+  const sendFriendRequest = async () => {
+    if (!friendUsername.trim() || !user) return;
+    setAddingFriend(true);
+    
+    try {
+      const userResponse = await fetch(`/api/users/search?username=${encodeURIComponent(friendUsername)}`, {
+        headers: getAuthHeader(),
+      });
+      
+      if (!userResponse.ok) {
+        alert("User not found!");
+        setAddingFriend(false);
+        return;
+      }
+      
+      const foundUser = await userResponse.json();
+      
+      if (foundUser.id === user.id) {
+        alert("You can't add yourself as a friend!");
+        setAddingFriend(false);
+        return;
+      }
+      
+      const response = await fetch("/api/friends/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          fromUserId: user.id,
+          toUserId: foundUser.id,
+        }),
+      });
+
+      if (response.ok) {
+        alert("Friend request sent! Your parent needs to approve it.");
+        setFriendUsername("");
+        setShowAddFriend(false);
+        fetchPendingRequests();
+      } else {
+        const error = await response.json();
+        alert(error.message || "Failed to send request");
+      }
+    } catch (err) {
+      console.error("Failed to send friend request:", err);
+      alert("Failed to send friend request");
+    }
+    setAddingFriend(false);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -374,17 +442,56 @@ export default function Chat() {
         </div>
       )}
 
-      <div className={`w-full md:w-80 border-r bg-white ${selectedFriend ? "hidden md:block" : ""}`}>
-        <div className="p-4 border-b">
-          <h2 className="text-xl font-bold">Friends</h2>
+      {showAddFriend && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <KidsCard className="w-full max-w-md p-6 space-y-4">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Add a Friend
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Enter your friend's username. Your parent will need to approve the request.
+            </p>
+            <Input
+              placeholder="Friend's username"
+              value={friendUsername}
+              onChange={(e) => setFriendUsername(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && sendFriendRequest()}
+            />
+            <div className="flex gap-2">
+              <Button onClick={sendFriendRequest} disabled={addingFriend} className="flex-1">
+                {addingFriend ? "Sending..." : "Send Request"}
+              </Button>
+              <Button variant="outline" onClick={() => setShowAddFriend(false)}>
+                Cancel
+              </Button>
+            </div>
+          </KidsCard>
         </div>
+      )}
+
+      <div className={`w-full md:w-80 border-r bg-white ${selectedFriend ? "hidden md:block" : ""}`}>
+        <div className="p-4 border-b flex items-center justify-between">
+          <h2 className="text-xl font-bold">Friends</h2>
+          <Button size="sm" onClick={() => setShowAddFriend(true)}>
+            <UserPlus className="w-4 h-4 mr-1" /> Add
+          </Button>
+        </div>
+        
+        {pendingRequests.length > 0 && (
+          <div className="p-3 bg-yellow-50 border-b">
+            <p className="text-sm text-yellow-700">
+              {pendingRequests.length} pending request(s) - waiting for parent approval
+            </p>
+          </div>
+        )}
         
         {friends.length === 0 ? (
           <div className="p-6 text-center">
             <UserPlus className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <p className="text-muted-foreground">No friends yet!</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Ask your parent to approve friend requests.
+              Tap "Add" to send a friend request.
             </p>
           </div>
         ) : (
