@@ -524,6 +524,179 @@ export async function registerRoutes(
     }
   });
 
+  // ============ GAMIFICATION API ============
+
+  // Get child's points and progress
+  app.get("/api/gamification/points/:childId", authenticateJWT, async (req, res) => {
+    const childId = parseInt(req.params.childId);
+    const user = (req as any).user;
+    
+    // Allow child to view own points or parent to view their child's
+    if (user.role === "child" && user.id !== childId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    if (user.role === "parent") {
+      const children = await storage.getChildrenByParent(user.id);
+      if (!children.find(c => c.id === childId)) {
+        return res.status(403).json({ message: "Not your child" });
+      }
+    }
+    
+    const points = await storage.getOrCreateChildPoints(childId);
+    res.json(points);
+  });
+
+  // Get all badges
+  app.get("/api/gamification/badges", authenticateJWT, async (req, res) => {
+    const badges = await storage.getAllBadges();
+    res.json(badges);
+  });
+
+  // Get child's earned badges
+  app.get("/api/gamification/badges/:childId", authenticateJWT, async (req, res) => {
+    const childId = parseInt(req.params.childId);
+    const user = (req as any).user;
+    
+    if (user.role === "child" && user.id !== childId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    
+    const earnedBadges = await storage.getEarnedBadges(childId);
+    res.json(earnedBadges);
+  });
+
+  // Get gamification settings for a child
+  app.get("/api/gamification/settings/:childId", authenticateJWT, authorizeParent, async (req, res) => {
+    const childId = parseInt(req.params.childId);
+    const user = (req as any).user;
+    
+    const children = await storage.getChildrenByParent(user.id);
+    if (!children.find(c => c.id === childId)) {
+      return res.status(403).json({ message: "Not your child" });
+    }
+    
+    const settings = await storage.getOrCreateGamificationSettings(childId);
+    res.json(settings);
+  });
+
+  // Update gamification settings for a child
+  app.patch("/api/gamification/settings/:childId", authenticateJWT, authorizeParent, async (req, res) => {
+    const childId = parseInt(req.params.childId);
+    const user = (req as any).user;
+    
+    const children = await storage.getChildrenByParent(user.id);
+    if (!children.find(c => c.id === childId)) {
+      return res.status(403).json({ message: "Not your child" });
+    }
+    
+    const updated = await storage.updateGamificationSettings(childId, req.body);
+    res.json(updated);
+  });
+
+  // Get point history for a child
+  app.get("/api/gamification/history/:childId", authenticateJWT, async (req, res) => {
+    const childId = parseInt(req.params.childId);
+    const user = (req as any).user;
+    
+    if (user.role === "child" && user.id !== childId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    
+    const transactions = await storage.getPointTransactions(childId);
+    res.json(transactions);
+  });
+
+  // Award video watch points (called when child watches a video)
+  app.post("/api/gamification/video-watched", authenticateJWT, async (req, res) => {
+    const user = (req as any).user;
+    if (user.role !== "child") {
+      return res.status(403).json({ message: "Only children earn points" });
+    }
+    
+    const settings = await storage.getOrCreateGamificationSettings(user.id);
+    if (!settings.enableVideoPoints) {
+      return res.json({ points: 0, message: "Video points disabled" });
+    }
+    
+    const dailyCount = await storage.incrementDailyVideoCount(user.id);
+    const pointsToAdd = settings.pointsPerVideo || 5;
+    
+    let result = await storage.addPoints(user.id, pointsToAdd, "Watched a video");
+    
+    // Bonus for completing daily limit
+    if (dailyCount === settings.dailyVideoLimit) {
+      const bonusResult = await storage.addPoints(user.id, settings.pointsPerDailyLimit || 10, "Completed daily video goal!");
+      result.newBadges = [...result.newBadges, ...bonusResult.newBadges];
+      result.childPoints = bonusResult.childPoints;
+    }
+    
+    res.json({ 
+      pointsEarned: pointsToAdd,
+      totalPoints: result.childPoints.totalPoints,
+      newBadges: result.newBadges,
+      dailyCount,
+      dailyLimit: settings.dailyVideoLimit
+    });
+  });
+
+  // Award chatbot question points
+  app.post("/api/gamification/chatbot-question", authenticateJWT, async (req, res) => {
+    const user = (req as any).user;
+    if (user.role !== "child") {
+      return res.json({ points: 0 });
+    }
+    
+    const settings = await storage.getOrCreateGamificationSettings(user.id);
+    if (!settings.enableChatbotPoints) {
+      return res.json({ points: 0 });
+    }
+    
+    await storage.incrementDailyChatbotCount(user.id);
+    const pointsToAdd = settings.pointsPerChatbotQuestion || 2;
+    const result = await storage.addPoints(user.id, pointsToAdd, "Asked the chatbot a question");
+    
+    res.json({
+      pointsEarned: pointsToAdd,
+      totalPoints: result.childPoints.totalPoints,
+      newBadges: result.newBadges
+    });
+  });
+
+  // Get full gamification dashboard data for a child
+  app.get("/api/gamification/dashboard/:childId", authenticateJWT, async (req, res) => {
+    const childId = parseInt(req.params.childId);
+    const user = (req as any).user;
+    
+    if (user.role === "child" && user.id !== childId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    
+    const [points, earnedBadges, allBadges, settings, history] = await Promise.all([
+      storage.getOrCreateChildPoints(childId),
+      storage.getEarnedBadges(childId),
+      storage.getAllBadges(),
+      storage.getOrCreateGamificationSettings(childId),
+      storage.getPointTransactions(childId, 10)
+    ]);
+    
+    // Calculate next badge
+    const earnedBadgeIds = new Set(earnedBadges.map(e => e.badgeId));
+    const nextBadge = allBadges.find(b => !earnedBadgeIds.has(b.id) && b.pointsRequired > points.totalPoints);
+    const progressToNext = nextBadge 
+      ? Math.round((points.totalPoints / nextBadge.pointsRequired) * 100)
+      : 100;
+    
+    res.json({
+      points,
+      earnedBadges: earnedBadges.map(e => e.badge),
+      allBadges,
+      nextBadge,
+      progressToNext,
+      settings,
+      recentHistory: history
+    });
+  });
+
   await seedDatabase();
 
   return httpServer;
@@ -531,6 +704,9 @@ export async function registerRoutes(
 
 export async function seedDatabase() {
   try {
+    // Seed default badges
+    await storage.seedDefaultBadges();
+    
     const contentList = await storage.getContent();
     if (contentList.length === 0) {
       await storage.createContent({
