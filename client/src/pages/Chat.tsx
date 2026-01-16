@@ -49,6 +49,7 @@ export default function Chat() {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteUserIdRef = useRef<number | null>(null);
 
   const ICE_SERVERS = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -245,14 +246,17 @@ export default function Chat() {
     }
   };
 
-  const initializePeerConnection = () => {
+  const initializePeerConnection = (targetUserId: number) => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     
+    // Store target user ID in ref for immediate access in ICE candidate handler
+    remoteUserIdRef.current = targetUserId;
+    
     pc.onicecandidate = (event) => {
-      if (event.candidate && ws && callState.remoteUserId) {
+      if (event.candidate && ws && remoteUserIdRef.current) {
         ws.send(JSON.stringify({
           type: "ice-candidate",
-          targetUserId: callState.remoteUserId,
+          targetUserId: remoteUserIdRef.current,
           candidate: event.candidate,
         }));
       }
@@ -286,7 +290,7 @@ export default function Chat() {
         localVideoRef.current.srcObject = stream;
       }
       
-      const pc = initializePeerConnection();
+      const pc = initializePeerConnection(friendUserId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
       
       const offer = await pc.createOffer();
@@ -322,7 +326,7 @@ export default function Chat() {
         localVideoRef.current.srcObject = stream;
       }
       
-      const pc = initializePeerConnection();
+      const pc = initializePeerConnection(incomingCall.fromUserId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
       
       // Must set remote description (the offer) before creating answer
@@ -385,6 +389,7 @@ export default function Chat() {
       remoteVideoRef.current.srcObject = null;
     }
     
+    remoteUserIdRef.current = null;
     setCallState({ active: false, type: null, isOutgoing: false, remoteUserId: null });
   };
 
