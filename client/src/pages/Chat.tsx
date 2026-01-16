@@ -195,6 +195,7 @@ export default function Chat() {
       
       if (data.type === "call-answer" && peerConnectionRef.current) {
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        console.log("Receivers after answer:", peerConnectionRef.current.getReceivers().map(r => r.track?.kind));
         setCallState(prev => ({ ...prev, status: "connected" }));
       }
       
@@ -393,26 +394,41 @@ export default function Chat() {
     
     pc.ontrack = (event) => {
       console.log("Received remote track:", event.track.kind);
+      console.log("Remote streams count:", event.streams.length);
+      console.log("Track enabled:", event.track.enabled, "readyState:", event.track.readyState);
       
-      // Create or get the remote stream
-      if (!remoteStreamRef.current) {
-        remoteStreamRef.current = new MediaStream();
-      }
-      
-      // Add the track to our remote stream
-      remoteStreamRef.current.addTrack(event.track);
-      
-      // Attach to video element (handles both audio and video)
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
-        // Ensure video plays
-        remoteVideoRef.current.play().catch(e => console.log("Video play error:", e));
-      }
-      
-      // Also attach to audio element for voice calls
-      if (remoteAudioRef.current && event.track.kind === "audio") {
-        remoteAudioRef.current.srcObject = remoteStreamRef.current;
-        remoteAudioRef.current.play().catch(e => console.log("Audio play error:", e));
+      // Use the stream from the event directly - this is properly synchronized
+      const remoteStream = event.streams[0];
+      if (remoteStream) {
+        remoteStreamRef.current = remoteStream;
+        console.log("Remote stream tracks:", remoteStream.getTracks().map(t => `${t.kind}:${t.enabled}`));
+        
+        // Attach to video element (handles both audio and video)
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = remoteStream;
+          remoteVideoRef.current.play().catch(e => console.log("Video play error:", e));
+        }
+        
+        // Also attach to audio element for voice calls
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = remoteStream;
+          remoteAudioRef.current.play().catch(e => console.log("Audio play error:", e));
+        }
+      } else {
+        // Fallback: create stream manually if no streams in event
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = new MediaStream();
+        }
+        remoteStreamRef.current.addTrack(event.track);
+        
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+          remoteVideoRef.current.play().catch(e => console.log("Video play error:", e));
+        }
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+          remoteAudioRef.current.play().catch(e => console.log("Audio play error:", e));
+        }
       }
     };
     
@@ -446,6 +462,10 @@ export default function Chat() {
       
       const pc = initializePeerConnection(friendUserId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      
+      // Debug logs
+      console.log("Local tracks:", stream.getTracks().map(t => `${t.kind}:${t.enabled}`));
+      console.log("Senders:", pc.getSenders().map(s => s.track?.kind));
       
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -489,11 +509,18 @@ export default function Chat() {
       const pc = initializePeerConnection(incomingCall.fromUserId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
       
+      // Debug logs
+      console.log("Local tracks:", stream.getTracks().map(t => `${t.kind}:${t.enabled}`));
+      console.log("Senders:", pc.getSenders().map(s => s.track?.kind));
+      
       // Must set remote description (the offer) before creating answer
       await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.sdp));
       
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      
+      // Debug after answer
+      console.log("Receivers after answer:", pc.getReceivers().map(r => r.track?.kind));
       
       setCallState({ active: true, type: incomingCall.callType, isOutgoing: false, remoteUserId: incomingCall.fromUserId, status: "connected" });
       setIncomingCall(null);
@@ -574,6 +601,43 @@ export default function Chat() {
 
   return (
     <div className="h-screen flex relative">
+      {/* Hidden media elements - ALWAYS in DOM for ref availability */}
+      <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
+      <video 
+        ref={remoteVideoRef} 
+        autoPlay 
+        playsInline 
+        style={{ 
+          display: callState.active && callState.status === "connected" && callState.type === "video" ? 'block' : 'none',
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          maxHeight: '70vh',
+          maxWidth: '100%',
+          zIndex: 41,
+          borderRadius: '0.5rem',
+          backgroundColor: '#1f2937'
+        }}
+      />
+      <video 
+        ref={localVideoRef} 
+        autoPlay 
+        playsInline 
+        muted 
+        style={{ 
+          display: callState.active && callState.status === "connected" && callState.type === "video" ? 'block' : 'none',
+          position: 'fixed',
+          bottom: '6rem',
+          right: '1rem',
+          width: '8rem',
+          height: '6rem',
+          zIndex: 42,
+          borderRadius: '0.5rem',
+          border: '2px solid white'
+        }}
+      />
+      
       {incomingCall && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
           <KidsCard className="p-8 text-center space-y-6">
@@ -600,26 +664,6 @@ export default function Chat() {
 
       {callState.active && (
         <div className="fixed inset-0 bg-black z-40 flex flex-col">
-          {/* Hidden audio element for voice calls */}
-          <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
-          
-          {/* Hidden video elements - always present for stream attachment */}
-          <video 
-            ref={remoteVideoRef} 
-            autoPlay 
-            playsInline 
-            style={{ display: callState.status === "connected" && callState.type === "video" ? 'block' : 'none' }}
-            className="max-h-[70vh] max-w-full rounded-lg bg-gray-800 mx-auto"
-          />
-          <video 
-            ref={localVideoRef} 
-            autoPlay 
-            playsInline 
-            muted 
-            style={{ display: callState.status === "connected" && callState.type === "video" ? 'block' : 'none' }}
-            className="absolute bottom-24 right-4 w-32 h-24 rounded-lg border-2 border-white"
-          />
-          
           <div className="flex-1 flex items-center justify-center gap-4 p-4">
             {callState.status === "calling" && (
               <div className="text-center text-white">
