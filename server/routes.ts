@@ -280,8 +280,18 @@ export async function registerRoutes(
   app.post(api.friends.approveRequest.path, authenticateJWT, authorizeParent, async (req, res) => {
     try {
       const parentId = (req as any).user.id;
-      await storage.approveFriendRequest(Number(req.params.requestId), parentId);
-      res.json({ message: "Friend request approved" });
+      const result = await storage.approveFriendRequest(Number(req.params.requestId), parentId);
+      
+      if (result.needsSecondApproval) {
+        res.json({ 
+          message: "Your approval recorded! Waiting for the other child's parent to approve.",
+          status: result.status 
+        });
+      } else if (result.status === "approved") {
+        res.json({ message: "Friend request approved! The children can now chat.", status: "approved" });
+      } else {
+        res.json({ message: result.status, status: result.status });
+      }
     } catch (err) {
       console.error("Approve friend request error:", err);
       res.status(500).json({ message: "Internal server error" });

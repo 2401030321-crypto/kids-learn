@@ -21,6 +21,9 @@ interface FriendRequest {
   fromUserId: number;
   toUserId: number;
   status: string;
+  fromUsername?: string;
+  toUsername?: string;
+  sameParent?: boolean;
 }
 
 export default function ParentDashboard() {
@@ -139,11 +142,15 @@ export default function ParentDashboard() {
 
   const approveFriendRequest = async (requestId: number) => {
     try {
-      await fetch(`/api/friends/approve/${requestId}`, {
+      const response = await fetch(`/api/friends/approve/${requestId}`, {
         method: "POST",
         headers: getAuthHeader(),
       });
-      toast({ title: "Friend request approved!" });
+      const data = await response.json();
+      toast({ 
+        title: data.status === "approved" ? "Friendship approved!" : "Approval recorded!",
+        description: data.message 
+      });
       fetchPendingRequests();
     } catch (err) {
       toast({ variant: "destructive", title: "Failed to approve request" });
@@ -380,7 +387,10 @@ export default function ParentDashboard() {
 
         <TabsContent value="friends" className="space-y-6">
           <KidsCard className="p-6">
-            <h2 className="text-xl font-bold mb-4">Pending Friend Requests</h2>
+            <h2 className="text-xl font-bold mb-4">Friend Requests Needing Approval</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Children from the same family need one parent approval. Children from different families need approval from both parents.
+            </p>
             {pendingRequests.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
                 No pending friend requests to approve.
@@ -389,15 +399,31 @@ export default function ParentDashboard() {
               <div className="space-y-3">
                 {pendingRequests.map((request) => (
                   <div key={request.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                    <div>
-                      <p className="font-medium">Friend Request #{request.id}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          {request.fromUsername || `User ${request.fromUserId}`} 
+                          <span className="text-muted-foreground mx-2">→</span> 
+                          {request.toUsername || `User ${request.toUserId}`}
+                        </p>
+                        {request.sameParent && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Same Family</span>
+                        )}
+                        {!request.sameParent && (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Different Families</span>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">
-                        User {request.fromUserId} wants to be friends with User {request.toUserId}
+                        {request.status === "pending" && !request.sameParent 
+                          ? "Needs approval from both parents" 
+                          : request.status === "pending_second_approval"
+                          ? "Waiting for the other parent to approve"
+                          : "Approve to allow these children to chat"}
                       </p>
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" onClick={() => approveFriendRequest(request.id)} className="bg-green-500 hover:bg-green-600">
-                        <Check className="w-4 h-4" />
+                        <Check className="w-4 h-4 mr-1" /> Approve
                       </Button>
                       <Button size="sm" variant="destructive" onClick={() => rejectFriendRequest(request.id)}>
                         <X className="w-4 h-4" />

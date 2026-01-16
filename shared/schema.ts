@@ -44,8 +44,9 @@ export const friendRequests = pgTable("friend_requests", {
   id: serial("id").primaryKey(),
   fromUserId: integer("from_user_id").notNull(),
   toUserId: integer("to_user_id").notNull(),
-  status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+  status: text("status", { enum: ["pending", "pending_second_approval", "approved", "rejected"] }).notNull().default("pending"),
   approvedByParentId: integer("approved_by_parent_id"),
+  secondParentId: integer("second_parent_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

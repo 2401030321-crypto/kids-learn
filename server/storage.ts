@@ -23,7 +23,7 @@ export interface IStorage {
   getFriendRequests(userId: number): Promise<FriendRequest[]>;
   getPendingApprovalRequests(parentId: number): Promise<FriendRequest[]>;
   createFriendRequest(fromUserId: number, toUserId: number): Promise<FriendRequest>;
-  approveFriendRequest(requestId: number, parentId: number): Promise<void>;
+  approveFriendRequest(requestId: number, parentId: number): Promise<{ status: string; needsSecondApproval: boolean }>;
   rejectFriendRequest(requestId: number): Promise<void>;
   getMessages(userId: number, friendId: number): Promise<Message[]>;
   sendMessage(message: InsertMessage): Promise<Message>;
@@ -106,20 +106,37 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
-  async getPendingApprovalRequests(parentId: number): Promise<FriendRequest[]> {
+  async getPendingApprovalRequests(parentId: number): Promise<any[]> {
     const children = await this.getChildrenByParent(parentId);
     const childIds = children.map(c => c.id);
     if (childIds.length === 0) return [];
     
-    const requests: FriendRequest[] = [];
+    const requests: any[] = [];
     for (const childId of childIds) {
       const childRequests = await db.select().from(friendRequests).where(
         and(
           or(eq(friendRequests.fromUserId, childId), eq(friendRequests.toUserId, childId)),
-          eq(friendRequests.status, "pending")
+          or(eq(friendRequests.status, "pending"), eq(friendRequests.status, "pending_second_approval"))
         )
       );
-      requests.push(...childRequests);
+      
+      for (const req of childRequests) {
+        if (req.status === "pending_second_approval" && req.approvedByParentId === parentId) {
+          continue;
+        }
+        
+        const [fromUser] = await db.select().from(users).where(eq(users.id, req.fromUserId));
+        const [toUser] = await db.select().from(users).where(eq(users.id, req.toUserId));
+        
+        requests.push({
+          ...req,
+          fromUsername: fromUser?.username,
+          toUsername: toUser?.username,
+          fromParentId: fromUser?.parentId,
+          toParentId: toUser?.parentId,
+          sameParent: fromUser?.parentId === toUser?.parentId,
+        });
+      }
     }
     return requests;
   }
@@ -133,19 +150,51 @@ export class DatabaseStorage implements IStorage {
     return request;
   }
 
-  async approveFriendRequest(requestId: number, parentId: number): Promise<void> {
+  async approveFriendRequest(requestId: number, parentId: number): Promise<{ status: string; needsSecondApproval: boolean }> {
     const [request] = await db.select().from(friendRequests).where(eq(friendRequests.id, requestId));
-    if (!request) return;
+    if (!request) return { status: "not_found", needsSecondApproval: false };
 
-    await db.update(friendRequests)
-      .set({ status: "approved", approvedByParentId: parentId })
-      .where(eq(friendRequests.id, requestId));
+    const [fromUser] = await db.select().from(users).where(eq(users.id, request.fromUserId));
+    const [toUser] = await db.select().from(users).where(eq(users.id, request.toUserId));
+    
+    if (!fromUser || !toUser) return { status: "user_not_found", needsSecondApproval: false };
 
-    await db.insert(friends).values({
-      userId: request.fromUserId,
-      friendId: request.toUserId,
-      approvedByParentId: parentId,
-    });
+    const sameParent = fromUser.parentId === toUser.parentId;
+    
+    if (sameParent) {
+      await db.update(friendRequests)
+        .set({ status: "approved", approvedByParentId: parentId })
+        .where(eq(friendRequests.id, requestId));
+
+      await db.insert(friends).values({
+        userId: request.fromUserId,
+        friendId: request.toUserId,
+        approvedByParentId: parentId,
+      });
+      return { status: "approved", needsSecondApproval: false };
+    }
+    
+    if (request.status === "pending") {
+      await db.update(friendRequests)
+        .set({ status: "pending_second_approval", approvedByParentId: parentId })
+        .where(eq(friendRequests.id, requestId));
+      return { status: "pending_second_approval", needsSecondApproval: true };
+    }
+    
+    if (request.status === "pending_second_approval" && request.approvedByParentId !== parentId) {
+      await db.update(friendRequests)
+        .set({ status: "approved", secondParentId: parentId })
+        .where(eq(friendRequests.id, requestId));
+
+      await db.insert(friends).values({
+        userId: request.fromUserId,
+        friendId: request.toUserId,
+        approvedByParentId: request.approvedByParentId!,
+      });
+      return { status: "approved", needsSecondApproval: false };
+    }
+    
+    return { status: "already_approved_by_you", needsSecondApproval: false };
   }
 
   async rejectFriendRequest(requestId: number): Promise<void> {
