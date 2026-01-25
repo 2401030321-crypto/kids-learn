@@ -1,7 +1,27 @@
 import { Link, useLocation } from "wouter";
 import { Home, PenTool, Shield, Settings, User } from "lucide-react";
 import { clsx } from "clsx";
+import { useTheme } from "../hooks/useTheme";
 
+export default function Navbar() {
+  const { theme, toggleTheme } = useTheme();
+
+  return (
+    <div className="flex justify-between items-center p-4 bg-white dark:bg-gray-900">
+      <h1 className="text-xl font-bold text-black dark:text-white">
+        My App
+      </h1>
+
+      <button
+        onClick={toggleTheme}
+        className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-black dark:text-white"
+      >
+        {theme === "light" ? "🌙 Dark" : "☀️ Light"}
+      </button>
+    </div>
+  );
+}
+can I add this in navigation.tsx
 export function BottomNav() {
   const [location] = useLocation();
 
