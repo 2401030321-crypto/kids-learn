@@ -21,7 +21,7 @@ export default function Navbar() {
     </div>
   );
 }
-can I add this in navigation.tsx
+
 export function BottomNav() {
   const [location] = useLocation();
 
