@@ -90,7 +90,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/help">
-      <ProtectedRoute component={Help} roles={["child"]} />
+      <ProtectedRoute component={Help}  />
       </Route>
       <Route component={NotFound} />
 
