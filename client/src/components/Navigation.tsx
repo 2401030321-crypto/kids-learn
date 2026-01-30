@@ -1,11 +1,11 @@
 import { Link, useLocation } from "wouter";
-import { Home, PenTool, Shield, Settings, User } from "lucide-react";
 import { clsx } from "clsx";
 import { useTheme } from "../hooks/useTheme";
+import { Home, PenTool, Shield, User, HelpCircle } from "lucide-react";
 
-export default function Navbar() {
+
+export default function Navigation() {
   const { theme, toggleTheme } = useTheme();
-
   return (
     <div className="flex justify-between items-center p-4 bg-white dark:bg-gray-900">
       <h1 className="text-xl font-bold text-black dark:text-white">
@@ -30,6 +30,7 @@ export function BottomNav() {
     { href: "/create", icon: PenTool, label: "Create", color: "text-purple-500" },
     { href: "/parent", icon: Shield, label: "Parents", color: "text-orange-500" },
     { href: "/profile", icon: User, label: "Profile", color: "text-green-500" },
+
   ];
 
   return (
@@ -74,6 +75,8 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-sm border-b border-slate-100 px-6 py-4">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
+
+        {/* Left: Logo */}
         <Link href="/" className="flex items-center gap-2 group cursor-pointer">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-blue-400 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200 group-hover:rotate-12 transition-transform duration-300">
             <span className="font-display font-black text-xl">K</span>
@@ -82,12 +85,24 @@ export function TopBar() {
             Kid<span className="text-primary">Space</span>
           </span>
         </Link>
-        
+
+        {/* Center: Help */}
+        <nav className="flex items-center gap-6">
+          <Link
+            href="/help"
+            className="font-semibold text-slate-600 hover:text-primary transition-colors"
+          >
+            Help
+          </Link>
+        </nav>
+
+        {/* Right: Points */}
         <div className="flex items-center gap-3">
           <button className="w-10 h-10 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center hover:bg-yellow-200 transition-colors">
-            <span className="font-bold text-lg">Points</span>
+            <span className="font-bold text-lg">★</span>
           </button>
         </div>
+
       </div>
     </header>
   );
