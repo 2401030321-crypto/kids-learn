@@ -1,13 +1,19 @@
 import { Link, useLocation } from "wouter";
+<<<<<<< HEAD
 import { Home, Compass, Shield, Sparkles, LogOut, MessageCircle, Bot, Video, Film, Upload, Trophy, Search } from "lucide-react";
+=======
+import { Home, Compass, Shield, Sparkles, LogOut, MessageCircle, Bot, Film, Upload, Trophy, HelpCircle } from "lucide-react";
+>>>>>>> 6ce3bb2 (help section)
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+
 
 export function Navbar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
 
   const navItems = [
+<<<<<<< HEAD
     { name: "Home", href: "/", icon: Home },
     { name: "Explore", href: "/explore", icon: Compass },
     { name: "Safe Explore", href: "/safe-explore", icon: Search },
@@ -20,6 +26,28 @@ export function Navbar() {
     ...(user?.role === "parent" ? [{ name: "Parents", href: "/dashboard", icon: Shield }] : []),
     ...(user?.role === "creator" ? [{ name: "Upload", href: "/creator", icon: Upload }] : []),
   ];
+=======
+  { name: "Home", href: "/", icon: Home }, 
+  { name: "Explore", href: "/explore", icon: Compass },
+  { name: "Shorts", href: "/shorts", icon: Film },
+
+  ...(user?.role === "child" ? [
+    { name: "Chat", href: "/chat", icon: MessageCircle },
+    { name: "AI Buddy", href: "/chatbot", icon: Bot },
+    { name: "Rewards", href: "/rewards", icon: Trophy },
+    { name: "Help", href: "/help", icon: HelpCircle },
+  ] : []),
+
+  ...(user?.role === "parent"
+    ? [{ name: "Parents", href: "/dashboard", icon: Shield }]
+    : []),
+
+  ...(user?.role === "creator"
+    ? [{ name: "Upload", href: "/creator", icon: Upload }]
+    : []),
+];
+
+>>>>>>> 6ce3bb2 (help section)
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur px-4 md:px-8">
